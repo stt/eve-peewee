@@ -1,11 +1,17 @@
 Eve Peewee extension
 ====================
 
-This is a WIP data layer [Eve](http://python-eve.org/) using [peewee](http://peewee-orm.com/)
+This is a WIP data layer for [Eve](http://python-eve.org/) using [peewee](http://peewee-orm.com/)
 
 Currently peewee creates tables based on settings.py DOMAIN declarations during start-up and basic Eve CRUD methods work.
 
-Notable caveats:
+#### Instuctions
+
+* python setup.py install
+* define DATABASE_URI in settings.py (see examples)
+* Eve(data=EvePeewee).run()
+
+#### Notable caveats
 
 * only postgres supported atm
 * peewee doesn't do auto-migration (if you change domain models, drop the tables to get them recreated or apply changes in db manually)

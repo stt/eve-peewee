@@ -1,0 +1,70 @@
+<html>
+<head>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.js"></script>
+<script>
+$(function() {
+  function out(content) {
+      var doc = $('#out')[0].contentDocument;
+      doc.open();
+      doc.write(content);
+      doc.close();
+  }
+
+  $('form').submit(function(evt) {
+    evt.preventDefault();
+
+    $.ajax({
+      type: $('#method').val(),
+      url: $('#path').val(),
+      data: $('#body').val(),
+      dataType: "json",
+      headers: {'If-Match': $('#ifmatch').val()},
+      contentType : "application/json"
+    })
+    .fail(function(res){
+      out(res.responseText)
+    })
+    .done(function(res, stat, xhr){
+      if(typeof(res) == "undefined") return out(xhr.status+' '+xhr.statusText);
+
+      if('_items' in res) {
+        res._items = res._items.map(function(e) {
+          return JSON.parse(e);
+        });
+      }
+      out('<pre>' + JSON.stringify(res, null, 2));
+    });
+
+  });
+});
+</script>
+<style>
+label { width:123px; display:inline-block; }
+dt { margin:3px; }
+</style>
+</head>
+<body>
+
+<form method=post>
+  <dl>
+  <dt><input type=text id=method list=methods value=GET size=10>
+  <datalist id=methods>
+  <option value="GET">
+  <option value="POST">
+  <option value="DELETE">
+  <option value="PATCH">
+  <option value="PUT">
+  </datalist>
+  path: <input type=text id=path value=/api/house>
+  <dt><label>if-match header:</label> <input type=text id=ifmatch size=40 title="for DELETE, PATCH, PUT">
+  <dt><label>body:</label>
+  <textarea id=body cols=40 rows=3 title="for POST, PATCH, PUT">{"address":"123","features":{}}</textarea>
+  </dl>
+  <input type=submit>
+
+</form>
+
+<iframe id="out" style="width:99%; height:85%"></iframe>
+
+</body>
+</html>
