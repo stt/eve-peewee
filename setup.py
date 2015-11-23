@@ -1,13 +1,18 @@
 #!/usr/bin/env python
-
+# -*- coding: utf-8 -*-
 from setuptools import setup
+import os
+
 DESCRIPTION = ("Data layer for Eve powered by peewee.")
 
-with open('README.md') as f:
-    LONG_DESCRIPTION = f.read()
+cwd = os.path.abspath(os.path.dirname(__file__))
+readme_path = os.path.join(cwd, 'README.md')
 
-#with open('CHANGES') as f:
-#    LONG_DESCRIPTION += f.read()
+try:
+    with open(readme_path) as f:
+        LONG_DESCRIPTION = f.read()
+except (OSError, IOError) as e:
+    LONG_DESCRIPTION = ""
 
 install_requires = [
     'Eve>=0.5',
@@ -16,7 +21,7 @@ install_requires = [
 
 setup(
     name='eve-peewee',
-    version=__import__('eve_peewee').__version__,
+    version='0.0.2',
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     author='Samuli Tuomola',
@@ -28,10 +33,9 @@ setup(
     test_suite="eve_peewee.tests",
     install_requires=install_requires,
     extras_require={
-        'tests': [
+        'test': [
             'pytest',
             'mock',
-            'pytest-flakes',
             ]
         },
     classifiers=[

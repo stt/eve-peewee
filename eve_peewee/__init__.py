@@ -1,6 +1,5 @@
-from playhouse.postgres_ext import Model, PostgresqlExtDatabase, BinaryJSONField
-from playhouse import db_url
 import peewee
+from playhouse import db_url
 
 from eve.io.base import DataLayer, BaseJSONEncoder
 from werkzeug.exceptions import HTTPException
@@ -15,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class BaseModel(Model):
+class BaseModel(peewee.Model):
     _created = peewee.DateTimeField()
     _updated = peewee.DateTimeField()
     _config = {}
@@ -126,6 +125,7 @@ class EvePeewee(DataLayer):
         elif name == 'datetime':
             fld = peewee.DateTimeField
         elif name == 'dict' or name == 'list':
+            from playhouse.postgres_ext import BinaryJSONField
             fld = BinaryJSONField
         return fld
  
@@ -133,6 +133,7 @@ class EvePeewee(DataLayer):
         if 'DATABASE_URI' in app.config:
             if app.config['DATABASE_URI'].startswith('postgres'):
                 url = db_url.parse(app.config['DATABASE_URI'])
+                from playhouse.postgres_ext import PostgresqlExtDatabase
                 self.driver = PostgresqlExtDatabase(register_hstore=False, **url)
             else:
                 self.driver = db_url.connect(app.config['DATABASE_URI'])
