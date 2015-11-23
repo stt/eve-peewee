@@ -1,6 +1,8 @@
 Eve Peewee extension
 ====================
 
+[![Build Status](https://travis-ci.org/stt/eve-peewee.svg)](https://travis-ci.org/stt/eve-peewee)
+
 This is a WIP data layer for [Eve](http://python-eve.org/) using [peewee](http://peewee-orm.com/)
 
 Currently peewee creates tables based on settings.py DOMAIN declarations during start-up and basic Eve CRUD methods work.

@@ -11,7 +11,7 @@ with open('README.md') as f:
 
 install_requires = [
     'Eve>=0.5',
-    'peewee>=2.7',
+    'peewee>=2.6',
 ]
 
 setup(
@@ -25,8 +25,8 @@ setup(
     license='BSD',
     platforms=["any"],
     packages=['eve_peewee'],
-    #test_suite="eve_peewee.tests",
-    #install_requires=install_requires,
+    test_suite="eve_peewee.tests",
+    install_requires=install_requires,
     extras_require={
         'tests': [
             'pytest',
