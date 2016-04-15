@@ -15,19 +15,24 @@ Currently peewee creates tables based on settings.py DOMAIN declarations during 
 
 #### Tested
 
-* postgres 9.4, sqlite3
-* python 2.7
+* postgres 9.x, sqlite3
+* python 2.7, 3.5
+* basic eve functionality (filtering, sorting, pagination, timestamps, etag/if-match, soft delete)
+* 1:m data relationships
 
-#### Untested
+#### Untested/TBD
 
 * mysql
-* python 3
-* data relationships (fkey)
+* custom validator
+* constraints (unique)
+* m:m data relationships (atm creates link tables but likely fails to query for embedding)
+* versioning fields
 
 #### Notable caveats
 
 * peewee doesn't do auto-migration (if you change domain models, drop the tables to get them recreated or apply changes in db manually)
 * peewee specific field properties can be defined in DOMAIN schema (requires "transparent_schema_rules"), e.g. `'_peewee': { 'primary_key': True }`
+* not all possible error cases are captured to json/xml document, default 500 response may happen
 * objectid and media types are unsupported (list and dict types are saved as jsonb)
 * many of the mongo centric field properties of eve (anyof, allof etc) are silently ignored
 
