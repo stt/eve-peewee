@@ -217,7 +217,6 @@ class TestGetSQL(TestBaseSQL):
             etag = item.get(self.app.config['ETAG'])
             self.assertTrue(etag is not None)
 
-    """TODO
     def test_get_where_allowed_filters(self):
         self.app.config['DOMAIN'][self.known_resource]['allowed_filters'] = \
             ['notreally']
@@ -232,7 +231,7 @@ class TestGetSQL(TestBaseSQL):
         r = self.test_client.get('%s%s' % (self.known_resource_url,
                                            '?where=%s' % where))
         self.assert200(r.status_code)
-    """
+ 
     def test_get_where_like(self):
         r = self.test_client.get("{0}{1}".format(
             self.known_resource_url,
@@ -293,7 +292,7 @@ class TestGetSQL(TestBaseSQL):
         response, status = self.get('users/overseas')
         import pdb; pdb.set_trace()
         self.assert_get(response, status, 'users_overseas')
-    """
+
 
     def test_get_resource_title(self):
         # test that resource endpoints accepts custom titles.
@@ -310,7 +309,7 @@ class TestGetSQL(TestBaseSQL):
                 break
         self.assertTrue(found)
 
-    """
+
     @pytest.mark.xfail(EVE < 6, run=False, reason='features not released yet')
     def test_get_ifmatch_disabled(self):
         # when IF_MATCH is disabled no etag is present in payload

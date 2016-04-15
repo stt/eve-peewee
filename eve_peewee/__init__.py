@@ -128,7 +128,10 @@ class EvePeewee(DataLayer):
     def _parse_where(self, op, where):
         try:
             query,joins = op.convert_dict_to_node(where)
-            return op.filter(reduce(operator.and_, query))
+            if len(query):
+                return op.filter(reduce(operator.and_, query))
+            else:
+                return op
         except AttributeError as exc:
             self.app.logger.warn("missing field?")
             self._handle_exception(exc)

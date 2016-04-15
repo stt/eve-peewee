@@ -129,7 +129,6 @@ class TestBaseSQL(TestMinimal):
                     h = hashlib.sha1()
                     person['_etag'] = h.hexdigest()
                     sql_tables['people'].create(**person)
-
             # TODO
             return
 
@@ -166,6 +165,8 @@ class TestBaseSQL(TestMinimal):
 
     def response_item(self, response, i=0):
         if self.app.config['HATEOAS']:
+            return response['_items'][i]
             return json.loads(response['_items'][i])
         else:
+            return response[i]
             return json.loads(response[i])
