@@ -3,16 +3,11 @@
 from setuptools import setup
 import os
 
-DESCRIPTION = ("Data layer for Eve powered by peewee.")
-
-cwd = os.path.abspath(os.path.dirname(__file__))
-readme_path = os.path.join(cwd, 'README.md')
-
 try:
-    with open(readme_path) as f:
-        LONG_DESCRIPTION = f.read()
-except (OSError, IOError) as e:
-    LONG_DESCRIPTION = ""
+    import pypandoc
+    long_description = pypandoc.convert('README.md', 'rst')
+except(IOError, ImportError):
+    long_description = open('README.md').read()
 
 install_requires = [
     'Eve>=0.5',
@@ -21,9 +16,9 @@ install_requires = [
 
 setup(
     name='eve-peewee',
-    version='0.0.2',
-    description=DESCRIPTION,
-    long_description=LONG_DESCRIPTION,
+    version='0.0.3',
+    description="Data layer for Eve powered by peewee.",
+    long_description=long_description,
     author='Samuli Tuomola',
     author_email='samuli.tuomola@gmail.com',
     url='https://github.com/stt/eve-peewee',
