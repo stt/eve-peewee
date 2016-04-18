@@ -8,10 +8,11 @@ from werkzeug.exceptions import HTTPException, abort
 from cerberus import Validator
 
 from datetime import datetime
-import time, json, ast, operator
+from functools import reduce
+import time, json, operator
 import traceback, sys
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 import logging
 logger = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ class EvePeewee(DataLayer):
         return instance
 
     def _handle_exception(self, exc):
+        self.driver.rollback()
         if self.app.debug:
             raise exc
         else:
@@ -149,6 +151,8 @@ class EvePeewee(DataLayer):
     def init_app(self, app):
         # eve.utils.config is not yet setup so use app.config here
         if 'DATABASE_URI' in app.config:
+            # NOTE: if there's an uncaptured db exception and rollback doesn't
+            # happen then the site is down until restart, could do autorollback=True?
             if app.config['DATABASE_URI'].startswith('postgres'):
                 url = db_url.parse(app.config['DATABASE_URI'])
                 from playhouse.postgres_ext import PostgresqlExtDatabase
@@ -250,7 +254,9 @@ class EvePeewee(DataLayer):
             #if 'datasource' in v and 'source' in v['datasource']:
 
         #import pdb; pdb.set_trace()
-        self.driver.create_tables(self.models.values() + self.link_tables.values(), safe=True)
+        tables = list(self.models.values())
+        tables += list(self.link_tables.values())
+        self.driver.create_tables(tables, safe=True)
 
     def _find(self, resource, req, **lookup):
         # TODO lookup?
@@ -306,16 +312,19 @@ class EvePeewee(DataLayer):
         return rs[0] if rs.count() else None
 
     def find(self, resource, req, sub_resource_lookup):
-        op = self._find(resource, req, lookup=sub_resource_lookup)
+        try:
+            op = self._find(resource, req, lookup=sub_resource_lookup)
 
-        if req.max_results:
-            op = op.limit(req.max_results)
-        if req.page > 1:
-            op = op.offset((req.page - 1) * req.max_results)
+            if req.max_results:
+                op = op.limit(req.max_results)
+            if req.page > 1:
+                op = op.offset((req.page - 1) * req.max_results)
 
-        rs = op.execute()
-        rs.__class__ = EvePeeweeResultWrapper
-        rs._count = op.count(clear_limit=True)
+            rs = op.execute()
+            rs.__class__ = EvePeeweeResultWrapper
+            rs._count = op.count(clear_limit=True)
+        except Exception as exc:
+            self._handle_exception(exc)
 
         return rs
 

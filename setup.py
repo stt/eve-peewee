@@ -9,14 +9,9 @@ try:
 except(IOError, ImportError):
     long_description = open('README.md').read()
 
-install_requires = [
-    'Eve>=0.5',
-    'peewee>=2.6',
-]
-
 setup(
     name='eve-peewee',
-    version='0.0.3',
+    version='0.0.4',
     description="Data layer for Eve powered by peewee.",
     long_description=long_description,
     author='Samuli Tuomola',
@@ -26,12 +21,10 @@ setup(
     platforms=["any"],
     packages=['eve_peewee'],
     test_suite="eve_peewee.tests",
-    install_requires=install_requires,
+    install_requires=['Eve>=0.6','peewee>=2.8'],
+    setup_requires=['pytest'],
     extras_require={
-        'test': [
-            'pytest',
-            'mock',
-            ]
+        'test': []
         },
     classifiers=[
         'Development Status :: 3 - Alpha',

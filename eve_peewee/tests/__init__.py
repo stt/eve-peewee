@@ -28,7 +28,7 @@ class TestBaseSQL(TestMinimal):
         self.this_directory = os.path.dirname(os.path.realpath(__file__))
         self.settings_file = os.path.join(self.this_directory,
                                           'test_settings_sql.py')
-        self.app = eve.Eve(settings=self.settings_file,
+        self.app = eve.Eve("", settings=self.settings_file,
                            url_converters=url_converters,
                            data=EvePeewee)
 #                           validator=ValidatorSQL)
