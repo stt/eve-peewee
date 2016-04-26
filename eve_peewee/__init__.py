@@ -2,7 +2,7 @@ import peewee
 from playhouse import db_url
 
 import eve
-from eve.utils import config
+from eve.utils import config, auto_fields
 from eve.io.base import DataLayer, BaseJSONEncoder
 from werkzeug.exceptions import HTTPException, abort
 from cerberus import Validator
@@ -101,6 +101,10 @@ class EvePeewee(DataLayer):
         'datetime': peewee.DateTimeField
     }
 
+    serializers = {
+        'datetime': peewee.DateTimeField().python_value
+    }
+
     def _get_model_cls(self, resource):
         try:
             return self.models[resource]
@@ -120,12 +124,40 @@ class EvePeewee(DataLayer):
         return instance
 
     def _handle_exception(self, exc):
-        self.driver.rollback()
+        try:
+            self.driver.rollback()
+        except Exception as err:
+            self.app.logger.warn(err)
+
         if self.app.debug:
             raise exc
         else:
             self.app.logger.exception(exc)
             abort(400, description=str(exc))
+
+    def combine_queries(self, query_a, query_b):
+        # spec ends up in _parse_where which only supports and-ops right now
+        z = query_a.copy()
+        z.update(query_b)
+        return z
+
+    def get_value_from_query(self, query, field_name):
+        """ For the specified field name, parses the query and returns
+        the value being assigned in the query.
+        """
+        for fn,cond in query.items():
+            if fn == field_name or fn.startswith(field_name+'__'):
+                return cond
+        raise KeyError
+
+    def query_contains_field(self, query, field_name):
+        """ For the specified field name, does the query contain it?
+        """
+        try:
+            self.get_value_from_query(query, field_name)
+        except KeyError:
+            return False
+        return True
 
     def _parse_where(self, op, where):
         try:
@@ -179,9 +211,6 @@ class EvePeewee(DataLayer):
         class Meta:
             database = self.driver
 
-        # HACK to workaround eve.utils.auto_fields
-        #eve.utils.Config.__getattr__ = lambda s,key: app.config[key]
-
         for res_name, v in app.config['DOMAIN'].items():
             if 'schema' not in v: continue
             base = {'Meta':Meta}
@@ -219,9 +248,6 @@ class EvePeewee(DataLayer):
                 # eve's default ID_FIELD is _id, peewee's is id
                 base[app.config['ID_FIELD']] = peewee.PrimaryKeyField()
 
-            #app._set_resource_defaults(res_name, app.config['DOMAIN'][res_name])
-            #print eve.utils.auto_fields(res_name)
-            #print self._datasource_ex(res_name)
             mod = type(res_name, (BaseModel,), base)
 
             self.models[res_name] = mod
@@ -259,7 +285,6 @@ class EvePeewee(DataLayer):
         self.driver.create_tables(tables, safe=True)
 
     def _find(self, resource, req, **lookup):
-        # TODO lookup?
         sort = []
         spec = {}
 
@@ -271,6 +296,11 @@ class EvePeewee(DataLayer):
                 self.app.logger.exception(exc)
                 abort(400, description='Unable to parse `where` clause')
 
+        if 'lookup' in lookup and lookup['lookup']:
+            spec = self.combine_queries(
+                spec, lookup['lookup'])
+            spec = lookup['lookup']
+
         if config.VALIDATE_FILTERS:
             bad_filter = validate_filters(spec, resource)
             if bad_filter:
@@ -280,10 +310,10 @@ class EvePeewee(DataLayer):
             # Soft delete filtering applied after validate_filters call as
             # querying against the DELETED field must always be allowed when
             # soft_delete is enabled
-            spec[config.DELETED+'__ne'] = True;
-            #if not self.query_contains_field(spec, config.DELETED):
-            #    spec = self.combine_queries(
-            #        spec, {config.DELETED: {"$ne": True}})
+            #spec[config.DELETED+'__ne'] = True
+            if not self.query_contains_field(spec, config.DELETED):
+                spec = self.combine_queries(
+                    spec, {config.DELETED+'__ne': True})
 
         model = self._get_model_cls(resource)
 
@@ -298,11 +328,45 @@ class EvePeewee(DataLayer):
                 except AttributeError:
                     abort(400, description='Unknown field name: %s' % sn)
 
-        op = model.select()
+        client_projection = self._client_projection(req)
+
+        datasource, spec, projection, sort = self._datasource_ex(
+            resource,
+            spec,
+            client_projection,
+            sort)
+
+        # TODO? http://eve-sqlalchemy.readthedocs.org/en/latest/tutorial.html#embedded-resources
+        if len(projection):
+            fields = [getattr(model, config.ID_FIELD)]
+            exclude_only = all(not v for v in projection.values())
+            include_only = all(projection.values())
+            keep_fields = auto_fields(resource)
+            for f in self.models[resource]._meta.fields.keys():
+                if f == config.ID_FIELD: continue
+                check_list = [include_only and f in projection,
+                              exclude_only and f not in projection,
+                              f in projection and not projection[f]]
+                # if not auto_field and not projected
+                if f not in keep_fields and not any(check_list): continue
+                fields.append(getattr(model, f))
+            op = model.select(*fields)
+        else:
+            op = model.select()
 
         op = self._parse_where(op, spec)
 
-        if len(sort):
+        if sort:
+            def fix_sort(sort_arg):
+                # default sort takes [('fname',1)]
+                if not isinstance(sort_arg, tuple):
+                    return sort_arg
+                sn,asc = sort_arg
+                sortf = getattr(model, sn)
+                if not asc: sortf = sortf.desc()
+                return sortf
+
+            sort = map(fix_sort, sort)
             op = op.order_by(*sort)
 
         return op
@@ -338,9 +402,6 @@ class EvePeewee(DataLayer):
         try:
             for doc in doc_or_docs:
                 model = self._doc_to_model(resource, doc)
-                dt = datetime.now()
-                model._created = dt
-                model._updated = dt
                 model.save()
                 id = getattr(model, config.ID_FIELD)
                 ids.append(id)
@@ -357,7 +418,7 @@ class EvePeewee(DataLayer):
         cls = self._get_model_cls(resource)
 
         model = cls.get(getattr(cls, config.ID_FIELD) == id_)
-        model._updated = datetime.now()
+        model._updated = datetime.utcnow()
 
         for k,v in updates.items():
             setattr(model, k, v)
