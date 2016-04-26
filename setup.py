@@ -11,7 +11,7 @@ except(IOError, ImportError):
 
 setup(
     name='eve-peewee',
-    version='0.0.4',
+    version='0.0.6',
     description="Data layer for Eve powered by peewee.",
     long_description=long_description,
     author='Samuli Tuomola',

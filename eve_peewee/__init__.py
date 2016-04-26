@@ -12,7 +12,7 @@ from functools import reduce
 import time, json, operator
 import traceback, sys
 
-__version__ = '0.0.4'
+__version__ = '0.0.6'
 
 import logging
 logger = logging.getLogger(__name__)
@@ -288,45 +288,45 @@ class EvePeewee(DataLayer):
         sort = []
         spec = {}
 
-        if req.where:
-            # could map mongo-style and_, or_ to peewee ops for eve/sqla compatibility
-            try:
-                spec = json.loads(req.where)
-            except ValueError as exc:
-                self.app.logger.exception(exc)
-                abort(400, description='Unable to parse `where` clause')
+        model = self._get_model_cls(resource)
+
+        if req:
+            if req.where:
+                # could map mongo-style and_, or_ to peewee ops for eve/sqla compatibility
+                try:
+                    spec = json.loads(req.where)
+                except ValueError as exc:
+                    self.app.logger.exception(exc)
+                    abort(400, description='Unable to parse `where` clause')
+
+            if config.VALIDATE_FILTERS:
+                bad_filter = validate_filters(spec, resource)
+                if bad_filter:
+                    abort(400, bad_filter)
+
+            if config.DOMAIN[resource]['soft_delete'] and not req.show_deleted:
+                # Soft delete filtering applied after validate_filters call as
+                # querying against the DELETED field must always be allowed when
+                # soft_delete is enabled
+                #spec[config.DELETED+'__ne'] = True
+                if not self.query_contains_field(spec, config.DELETED):
+                    spec = self.combine_queries(spec, {config.DELETED+'__ne': True})
+
+            if req.sort:
+                for sort_arg in [s.strip() for s in req.sort.split(",")]:
+                    sn = sort_arg[1:] if sort_arg[0] == "-" else sort_arg
+                    try:
+                        if sort_arg[0] == "-":
+                            sort.append(getattr(model, sn).desc())
+                        else:
+                            sort.append(getattr(model, sn))
+                    except AttributeError:
+                        abort(400, description='Unknown field name: %s' % sn)
 
         if 'lookup' in lookup and lookup['lookup']:
             spec = self.combine_queries(
                 spec, lookup['lookup'])
             spec = lookup['lookup']
-
-        if config.VALIDATE_FILTERS:
-            bad_filter = validate_filters(spec, resource)
-            if bad_filter:
-                abort(400, bad_filter)
-
-        if config.DOMAIN[resource]['soft_delete'] and not req.show_deleted:
-            # Soft delete filtering applied after validate_filters call as
-            # querying against the DELETED field must always be allowed when
-            # soft_delete is enabled
-            #spec[config.DELETED+'__ne'] = True
-            if not self.query_contains_field(spec, config.DELETED):
-                spec = self.combine_queries(
-                    spec, {config.DELETED+'__ne': True})
-
-        model = self._get_model_cls(resource)
-
-        if req.sort:
-            for sort_arg in [s.strip() for s in req.sort.split(",")]:
-                sn = sort_arg[1:] if sort_arg[0] == "-" else sort_arg
-                try:
-                    if sort_arg[0] == "-":
-                        sort.append(getattr(model, sn).desc())
-                    else:
-                        sort.append(getattr(model, sn))
-                except AttributeError:
-                    abort(400, description='Unknown field name: %s' % sn)
 
         client_projection = self._client_projection(req)
 
