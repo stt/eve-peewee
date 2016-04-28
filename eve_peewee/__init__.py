@@ -1,8 +1,9 @@
 import peewee
 from playhouse import db_url
+from playhouse.shortcuts import RetryOperationalError
 
 import eve
-from eve.utils import config, auto_fields
+from eve.utils import config, auto_fields, str_to_date
 from eve.io.base import DataLayer, BaseJSONEncoder
 from werkzeug.exceptions import HTTPException, abort
 from cerberus import Validator
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 class BaseModel(peewee.Model):
     _created = peewee.DateTimeField()
     _updated = peewee.DateTimeField()
-    _deleted = peewee.BooleanField({'required':True})
+    _deleted = peewee.BooleanField()
 
     def __contains__(self, key):
         return key in self._data
@@ -94,6 +95,7 @@ class EvePeewee(DataLayer):
 
     _eve_peewee_field_map = {
         'string': peewee.TextField,
+        'media': peewee.TextField,
         'boolean': peewee.BooleanField,
         'integer': peewee.IntegerField,
         'float': peewee.FloatField,
@@ -102,7 +104,10 @@ class EvePeewee(DataLayer):
     }
 
     serializers = {
-        'datetime': peewee.DateTimeField().python_value
+        'integer': lambda value: int(value) if value is not None else None,
+        'float': lambda value: float(value) if value is not None else None,
+        'number': lambda val: json.loads(val) if val is not None else None,
+        'datetime': str_to_date
     }
 
     def _get_model_cls(self, resource):
@@ -130,7 +135,9 @@ class EvePeewee(DataLayer):
             self.app.logger.warn(err)
 
         if self.app.debug:
-            raise exc
+            import sys
+            exc_info = sys.exc_info()
+            raise exc_info[0], exc_info[1], exc_info[2]
         else:
             self.app.logger.exception(exc)
             abort(400, description=str(exc))
@@ -179,23 +186,29 @@ class EvePeewee(DataLayer):
             from playhouse.postgres_ext import BinaryJSONField
             fld = BinaryJSONField
         return fld
- 
+
+    def _get_driver(self, dburi):
+        """assigns eve.data.driver based on config.DATABASE_URI
+        Override for any atypical db needs
+        """
+        # NOTE: if there's an uncaptured db exception and rollback doesn't
+        # happen then the site is down until restart, could do autorollback=True?
+        parsed = db_url.urlparse(dburi)
+        class RetryDB(RetryOperationalError, db_url.schemes[parsed.scheme]):
+            pass
+        return RetryDB(**db_url.parse(dburi))
+
+
     def init_app(self, app):
+        """Prepares models for eve
+        Most importantly, maps between:
+          http://python-eve.org/config.html#schema
+          http://docs.peewee-orm.com/en/latest/peewee/models.html#fields
+        TODO min/max_length could be supported in python but not by peewee
+        """
         # eve.utils.config is not yet setup so use app.config here
         if 'DATABASE_URI' in app.config:
-            # NOTE: if there's an uncaptured db exception and rollback doesn't
-            # happen then the site is down until restart, could do autorollback=True?
-            if app.config['DATABASE_URI'].startswith('postgres'):
-                url = db_url.parse(app.config['DATABASE_URI'])
-                from playhouse.postgres_ext import PostgresqlExtDatabase
-                self.driver = PostgresqlExtDatabase(register_hstore=False, **url)
-            else:
-                self.driver = db_url.connect(app.config['DATABASE_URI'])
-
-        # http://python-eve.org/config.html#schema
-        # http://docs.peewee-orm.com/en/latest/peewee/models.html#fields
-        # TODO min/max_length could be supported in python but not by peewee
-        # http://docs.peewee-orm.com/en/latest/peewee/models.html#some-fields-take-special-parameters
+            self.driver = self._get_driver(app.config['DATABASE_URI'])
 
         # mapping from eve field schema properties to peewee properties
         pw_eve_fld_prop_map = {
