@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class BaseModel(peewee.Model):
     _created = peewee.DateTimeField()
     _updated = peewee.DateTimeField()
-    _deleted = peewee.BooleanField()
+    _deleted = peewee.BooleanField(null=False, default=False)
 
     def __contains__(self, key):
         return key in self._data
@@ -199,6 +199,16 @@ class EvePeewee(DataLayer):
         return RetryDB(**db_url.parse(dburi))
 
 
+    def _create_model(self, res_name, base={}):
+        class Meta:
+            database = self.driver
+
+        if 'Meta' not in base:
+            base['Meta'] = Meta
+
+        return type(res_name, (BaseModel,), base)
+
+
     def init_app(self, app):
         """Prepares models for eve
         Most importantly, maps between:
@@ -221,14 +231,11 @@ class EvePeewee(DataLayer):
         self.models = {}
         self.link_tables = {}
 
-        class Meta:
-            database = self.driver
-
         for res_name, v in app.config['DOMAIN'].items():
             if 'schema' not in v: continue
-            base = {'Meta':Meta}
 
             primary_key_set = False
+            base = {}
 
             for field_name,fs in v['schema'].items():
                 # initial arguments for peewee field creation
@@ -261,7 +268,7 @@ class EvePeewee(DataLayer):
                 # eve's default ID_FIELD is _id, peewee's is id
                 base[app.config['ID_FIELD']] = peewee.PrimaryKeyField()
 
-            mod = type(res_name, (BaseModel,), base)
+            mod = self._create_model(res_name, base)
 
             self.models[res_name] = mod
 
@@ -359,8 +366,8 @@ class EvePeewee(DataLayer):
                 if f == config.ID_FIELD: continue
                 check_list = [include_only and f in projection,
                               exclude_only and f not in projection,
-                              f in projection and not projection[f]]
-                # if not auto_field and not projected
+                              f in projection and projection[f]]
+                # if not an auto_field and not projected out
                 if f not in keep_fields and not any(check_list): continue
                 fields.append(getattr(model, f))
             op = model.select(*fields)
@@ -415,7 +422,7 @@ class EvePeewee(DataLayer):
         try:
             for doc in doc_or_docs:
                 model = self._doc_to_model(resource, doc)
-                model.save()
+                model.save(force_insert=True)
                 id = getattr(model, config.ID_FIELD)
                 ids.append(id)
                 # TODO: query the stored data in case triggers change it?
