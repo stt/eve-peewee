@@ -135,9 +135,7 @@ class EvePeewee(DataLayer):
             self.app.logger.warn(err)
 
         if self.app.debug:
-            import sys
-            exc_info = sys.exc_info()
-            raise exc_info[0], exc_info[1], exc_info[2]
+            raise
         else:
             self.app.logger.exception(exc)
             abort(400, description=str(exc))
